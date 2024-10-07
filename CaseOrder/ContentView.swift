@@ -5,62 +5,81 @@
 //  Created by KidwishZhu on 2024/10/7.
 //
 
-import UIKit
 import SwiftUI
 
 struct ContentView: View {
     @State private var selectedDate = Date()
-    @State private var dishes: [String] = UserDefaults.standard.stringArray(forKey: "dishes") ?? ["宫保鸡丁", "麻婆豆腐", "红烧肉"]
+    @State private var dishes: [String] = UserDefaults.standard.stringArray(forKey: "dishes") ?? []
     @State private var newDishName = ""
-    @State var sharedDishes: [String] = [] // 新增状态属性
+    @State private var selectedDishes: [String] = []
 
     var body: some View {
         NavigationView {
             VStack {
                 DatePicker("选择日期", selection: $selectedDate, displayedComponents: .date)
                     .padding()
+                    .onChange(of: selectedDate) { _ in
+                        loadSelectedDishesForDate()
+                    }
 
                 List {
-                    ForEach(dishes, id: \.self) { dish in
-                        Text(dish)
+                    Section(header: Text("菜品列表")) {
+                        ForEach(dishes, id: \.self) { dish in
+                            HStack {
+                                Text(dish)
+                                Spacer()
+                                if selectedDishes.contains(dish) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .onTapGesture {
+                                toggleSelection(dish: dish)
+                            }
+                        }
+                        .onDelete(perform: deleteDish) // 添加删除功能
                     }
 
-                    // 展示接收到的菜品
-                    ForEach(sharedDishes, id: \.self) { dish in
-                        Text("来自分享: \(dish)")
-                            .foregroundColor(.gray)
+                    Section(header: Text("所点菜品")) {
+                        ForEach(selectedDishes, id: \.self) { dish in
+                            Text(dish)
+                        }
                     }
                 }
-                
+
                 HStack {
                     TextField("添加新菜品", text: $newDishName)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding()
-                    
+
                     Button(action: addDish) {
                         Text("添加")
                     }
                     .padding()
                 }
 
-                Button(action: shareDishes) {
+                Button(action: shareSelectedDishes) {
                     Text("分享所选菜品")
                         .padding()
-                        .background(Color.blue)
+                        .background(Color.green)
                         .foregroundColor(.white)
                         .cornerRadius(8)
                 }
             }
             .navigationTitle("点菜")
             .onAppear(perform: loadDishes)
+            .onAppear(perform: loadSelectedDishesForDate)
+            .onAppear(perform: checkForSharedContent)
         }
     }
-    
+
     func addDish() {
         if !newDishName.isEmpty {
-            dishes.append(newDishName)
+            if !dishes.contains(newDishName) {
+                dishes.append(newDishName)
+                saveDishes()
+            }
             newDishName = ""
-            saveDishes()
         }
     }
 
@@ -71,24 +90,134 @@ struct ContentView: View {
     func loadDishes() {
         dishes = UserDefaults.standard.stringArray(forKey: "dishes") ?? []
     }
-    
-    func shareDishes() {
+
+    func loadSelectedDishesForDate() {
+        let dateKey = formattedDate(for: selectedDate)
+        selectedDishes = UserDefaults.standard.stringArray(forKey: dateKey) ?? []
+    }
+
+    func toggleSelection(dish: String) {
+        if let index = selectedDishes.firstIndex(of: dish) {
+            selectedDishes.remove(at: index)
+        } else {
+            selectedDishes.append(dish)
+        }
+        saveSelectedDishesForDate()
+    }
+
+    func saveSelectedDishesForDate() {
+        let dateKey = formattedDate(for: selectedDate)
+        UserDefaults.standard.set(selectedDishes, forKey: dateKey)
+    }
+
+    func formattedDate(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    func shareSelectedDishes() {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         let dateString = formatter.string(from: selectedDate)
-        
-        let dishesString = dishes.joined(separator: "\n")
-        let message = "在 \(dateString) 的点菜：\n\(dishesString)"
-        
+
+        let selectedDishesString = selectedDishes.joined(separator: "\n")
+        let message = "在 \(dateString) 的点菜：\n\(selectedDishesString)"
+
         let activityVC = UIActivityViewController(activityItems: [message], applicationActivities: nil)
-        
+        presentActivityVC(activityVC)
+    }
+
+    private func presentActivityVC(_ activityVC: UIActivityViewController) {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             let rootViewController = windowScene.windows.first?.rootViewController
             rootViewController?.present(activityVC, animated: true, completion: nil)
         }
     }
+
+    func receiveSharedDishes(_ sharedDishes: [String]) {
+        for dish in sharedDishes {
+            if !dishes.contains(dish) {
+                dishes.append(dish)
+            }
+        }
+        saveDishes()
+    }
+
+    func checkForSharedContent() {
+        if let clipboardString = UIPasteboard.general.string {
+            let components = clipboardString.components(separatedBy: "\n").filter { !$0.isEmpty }
+            if components.count > 1 {
+                let dateString = components[0].replacingOccurrences(of: "在 ", with: "").replacingOccurrences(of: " 的点菜：", with: "")
+                let sharedDishesArray = Array(components.dropFirst())
+                
+                if let date = parseDate(from: dateString) {
+                    receiveSharedDishes(sharedDishesArray)
+                    saveSharedDishes(sharedDishesArray, for: date)
+                }
+            }
+        }
+    }
+
+    func parseDate(from dateString: String) -> Date? {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM d, yyyy"
+        return dateFormatter.date(from: dateString)
+    }
+
+    func saveSharedDishes(_ dishes: [String], for date: Date) {
+        let dateKey = formattedDate(for: date)
+        var existingDishes = UserDefaults.standard.stringArray(forKey: dateKey) ?? []
+        for dish in dishes {
+            if !existingDishes.contains(dish) {
+                existingDishes.append(dish)
+            }
+        }
+        UserDefaults.standard.set(existingDishes, forKey: dateKey)
+        loadSelectedDishesForDate() // 刷新当前选中日期的菜品
+        addReceivedDishes(dishes) // 将新菜品添加到主列表
+    }
+
+    func addReceivedDishes(_ receivedDishes: [String]) {
+        for dish in receivedDishes {
+            if !dishes.contains(dish) {
+                dishes.append(dish)
+            }
+        }
+        saveDishes()
+    }
+
+    // 添加删除菜品的方法
+    func deleteDish(at offsets: IndexSet) {
+        dishes.remove(atOffsets: offsets)
+        saveDishes()
+    }
 }
 
 
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+        do {
+            let content = try String(contentsOf: url, encoding: .utf8)
+            let components = content.components(separatedBy: "\n").filter { !$0.isEmpty }
+            if components.count > 1 {
+                let dateString = components[0].replacingOccurrences(of: "在 ", with: "").replacingOccurrences(of: " 的点菜：", with: "")
+                let sharedDishesArray = Array(components.dropFirst())
 
+                DispatchQueue.main.async { [weak self] in
+                    if let windowScene = application.connectedScenes.first as? UIWindowScene,
+                       let rootViewController = windowScene.windows.first?.rootViewController as? UIHostingController<ContentView> {
+                        rootViewController.rootView.receiveSharedDishes(sharedDishesArray)
 
+                        if let sharedDate = rootViewController.rootView.parseDate(from: dateString) {
+                            rootViewController.rootView.saveSharedDishes(sharedDishesArray, for: sharedDate)
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("读取分享内容时出错：\(error)")
+        }
+        return true
+    }
+}
