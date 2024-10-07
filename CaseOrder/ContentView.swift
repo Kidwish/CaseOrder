@@ -5,21 +5,31 @@
 //  Created by KidwishZhu on 2024/10/7.
 //
 
+import UIKit
 import SwiftUI
 
 struct ContentView: View {
     @State private var selectedDate = Date()
     @State private var dishes: [String] = UserDefaults.standard.stringArray(forKey: "dishes") ?? ["宫保鸡丁", "麻婆豆腐", "红烧肉"]
     @State private var newDishName = ""
+    @State var sharedDishes: [String] = [] // 新增状态属性
 
     var body: some View {
         NavigationView {
             VStack {
                 DatePicker("选择日期", selection: $selectedDate, displayedComponents: .date)
                     .padding()
-                
-                List(dishes, id: \.self) { dish in
-                    Text(dish)
+
+                List {
+                    ForEach(dishes, id: \.self) { dish in
+                        Text(dish)
+                    }
+
+                    // 展示接收到的菜品
+                    ForEach(sharedDishes, id: \.self) { dish in
+                        Text("来自分享: \(dish)")
+                            .foregroundColor(.gray)
+                    }
                 }
                 
                 HStack {
@@ -53,11 +63,11 @@ struct ContentView: View {
             saveDishes()
         }
     }
-    
+
     func saveDishes() {
         UserDefaults.standard.set(dishes, forKey: "dishes")
     }
-    
+
     func loadDishes() {
         dishes = UserDefaults.standard.stringArray(forKey: "dishes") ?? []
     }
@@ -78,6 +88,7 @@ struct ContentView: View {
         }
     }
 }
+
 
 
 
