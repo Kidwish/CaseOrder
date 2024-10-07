@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var loadedDishesCount = 20 // 初始加载数量
     @State private var isLoadingMore = false
     @State private var searchQuery = ""
+    @State private var sortAscending = true // 排序状态
 
     var body: some View {
         NavigationView {
@@ -32,9 +33,18 @@ struct ContentView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
 
+                Button(action: {
+                    sortAscending.toggle()
+                }) {
+                    Text(sortAscending ? "按字母降序排序" : "按字母升序排序")
+                        .padding()
+                        .background(Color.gray.opacity(0.2))
+                        .cornerRadius(10)
+                }
+
                 List {
                     Section(header: Text("菜品列表").font(.headline)) {
-                        ForEach(filteredDishes.prefix(loadedDishesCount), id: \.self) { dish in
+                        ForEach(filteredDishes.sorted(by: { sortAscending ? $0 < $1 : $0 > $1 }).prefix(loadedDishesCount), id: \.self) { dish in
                             HStack {
                                 Text(dish)
                                     .font(.body)
@@ -49,8 +59,8 @@ struct ContentView: View {
                                 toggleSelection(dish: dish)
                             }
                         }
-                        
-                        // 加载更多提示
+                        .onDelete(perform: deleteDish)
+
                         if isLoadingMore {
                             ProgressView()
                                 .onAppear(perform: loadMoreDishes)
@@ -71,6 +81,7 @@ struct ContentView: View {
                         ForEach(selectedDishes, id: \.self) { dish in
                             Text(dish)
                         }
+                        Text("已选择菜品数量: \(selectedDishes.count)") // 显示数量
                     }
                 }
                 .listStyle(InsetGroupedListStyle())
@@ -243,6 +254,44 @@ struct ContentView: View {
             loadedDishesCount += additionalDishes
             
             isLoadingMore = false
+        }
+    }
+
+    func deleteDish(at offsets: IndexSet) {
+        // 先将当前过滤和排序后的菜品转换为一个数组
+        let sortedFilteredDishes = filteredDishes.sorted(by: { sortAscending ? $0 < $1 : $0 > $1 })
+        
+        // 将要删除的菜品从 sortedFilteredDishes 中找到实际在 dishes 中的索引
+        let dishesToDelete = offsets.map { sortedFilteredDishes[$0] }
+        
+        // 从 dishes 中删除
+        dishes.removeAll { dishesToDelete.contains($0) }
+
+        // 更新所选菜品列表
+        selectedDishes.removeAll { dishesToDelete.contains($0) }
+        
+        // 获取所有已保存的日期
+        let savedDates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
+
+        // 更新每个日期的所点菜品
+        for date in savedDates {
+            var selectedDishesForDate = UserDefaults.standard.stringArray(forKey: date) ?? []
+            selectedDishesForDate.removeAll { dishesToDelete.contains($0) }
+            UserDefaults.standard.set(selectedDishesForDate, forKey: date)
+        }
+
+        // 保存当前所选菜品
+        saveSelectedDishesForDate()
+    }
+
+
+
+    func updateDishesForAllDates(_ dishesToDelete: [String]) {
+        let savedDates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
+        for date in savedDates {
+            var selectedDishesForDate = UserDefaults.standard.stringArray(forKey: date) ?? []
+            selectedDishesForDate.removeAll { dishesToDelete.contains($0) }
+            UserDefaults.standard.set(selectedDishesForDate, forKey: date)
         }
     }
 }
