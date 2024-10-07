@@ -108,6 +108,12 @@ struct ContentView: View {
     func saveSelectedDishesForDate() {
         let dateKey = formattedDate(for: selectedDate)
         UserDefaults.standard.set(selectedDishes, forKey: dateKey)
+        // 确保保存日期
+        var dates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
+        if !dates.contains(dateKey) {
+            dates.append(dateKey)
+            UserDefaults.standard.set(dates, forKey: "dates")
+        }
     }
 
     func formattedDate(for date: Date) -> String {
@@ -189,9 +195,27 @@ struct ContentView: View {
 
     // 添加删除菜品的方法
     func deleteDish(at offsets: IndexSet) {
+        let dishesToDelete = offsets.map { dishes[$0] }
         dishes.remove(atOffsets: offsets)
+
+        // 获取所有已保存的日期
+        let savedDates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
+        
+        // 更新每个日期的所点菜品
+        for date in savedDates {
+            var selectedDishesForDate = UserDefaults.standard.stringArray(forKey: date) ?? []
+            selectedDishesForDate.removeAll { dishesToDelete.contains($0) }
+            UserDefaults.standard.set(selectedDishesForDate, forKey: date)
+        }
+
+        // 更新当前所选日期的存储
+        selectedDishes.removeAll { dishesToDelete.contains($0) }
         saveDishes()
+        
+        // 强制更新当前日期的所选菜品
+        loadSelectedDishesForDate()
     }
+
 }
 
 
