@@ -12,6 +12,9 @@ struct ContentView: View {
     @State private var dishes: [String] = UserDefaults.standard.stringArray(forKey: "dishes") ?? []
     @State private var newDishName = ""
     @State private var selectedDishes: [String] = []
+    @State private var loadedDishesCount = 20 // 初始加载数量
+    @State private var isLoadingMore = false
+    @State private var searchQuery = ""
 
     var body: some View {
         NavigationView {
@@ -25,9 +28,13 @@ struct ContentView: View {
                         loadSelectedDishesForDate()
                     }
 
+                TextField("搜索菜品", text: $searchQuery)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+
                 List {
                     Section(header: Text("菜品列表").font(.headline)) {
-                        ForEach(dishes, id: \.self) { dish in
+                        ForEach(filteredDishes.prefix(loadedDishesCount), id: \.self) { dish in
                             HStack {
                                 Text(dish)
                                     .font(.body)
@@ -42,7 +49,22 @@ struct ContentView: View {
                                 toggleSelection(dish: dish)
                             }
                         }
-                        .onDelete(perform: deleteDish) // 添加删除功能
+                        
+                        // 加载更多提示
+                        if isLoadingMore {
+                            ProgressView()
+                                .onAppear(perform: loadMoreDishes)
+                        } else {
+                            if filteredDishes.count > loadedDishesCount {
+                                Button("加载更多") {
+                                    loadMoreDishes()
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.gray.opacity(0.2))
+                                .cornerRadius(10)
+                            }
+                        }
                     }
 
                     Section(header: Text("所点菜品").font(.headline)) {
@@ -85,8 +107,11 @@ struct ContentView: View {
             .onAppear(perform: loadDishes)
             .onAppear(perform: loadSelectedDishesForDate)
             .onAppear(perform: checkForSharedContent)
-
         }
+    }
+
+    var filteredDishes: [String] {
+        return dishes.filter { searchQuery.isEmpty || $0.contains(searchQuery) }
     }
 
     func addDish() {
@@ -124,7 +149,6 @@ struct ContentView: View {
     func saveSelectedDishesForDate() {
         let dateKey = formattedDate(for: selectedDate)
         UserDefaults.standard.set(selectedDishes, forKey: dateKey)
-        // 确保保存日期
         var dates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
         if !dates.contains(dateKey) {
             dates.append(dateKey)
@@ -196,8 +220,8 @@ struct ContentView: View {
             }
         }
         UserDefaults.standard.set(existingDishes, forKey: dateKey)
-        loadSelectedDishesForDate() // 刷新当前选中日期的菜品
-        addReceivedDishes(dishes) // 将新菜品添加到主列表
+        loadSelectedDishesForDate()
+        addReceivedDishes(dishes)
     }
 
     func addReceivedDishes(_ receivedDishes: [String]) {
@@ -209,27 +233,17 @@ struct ContentView: View {
         saveDishes()
     }
 
-    // 添加删除菜品的方法
-    func deleteDish(at offsets: IndexSet) {
-        let dishesToDelete = offsets.map { dishes[$0] }
-        dishes.remove(atOffsets: offsets)
-
-        // 获取所有已保存的日期
-        let savedDates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
+    func loadMoreDishes() {
+        guard !isLoadingMore else { return }
         
-        // 更新每个日期的所点菜品
-        for date in savedDates {
-            var selectedDishesForDate = UserDefaults.standard.stringArray(forKey: date) ?? []
-            selectedDishesForDate.removeAll { dishesToDelete.contains($0) }
-            UserDefaults.standard.set(selectedDishesForDate, forKey: date)
+        isLoadingMore = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            let additionalDishes = min(10, filteredDishes.count - loadedDishesCount)
+            loadedDishesCount += additionalDishes
+            
+            isLoadingMore = false
         }
-
-        // 更新当前所选日期的存储
-        selectedDishes.removeAll { dishesToDelete.contains($0) }
-        saveDishes()
-        
-        // 强制更新当前日期的所选菜品
-        loadSelectedDishesForDate()
     }
 }
 
@@ -259,3 +273,4 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 }
+
