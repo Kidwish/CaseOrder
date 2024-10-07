@@ -282,9 +282,10 @@ struct ContentView: View {
 
         // 保存当前所选菜品
         saveSelectedDishesForDate()
+
+        // 确保持久化保存菜品
+        saveDishes()
     }
-
-
 
     func updateDishesForAllDates(_ dishesToDelete: [String]) {
         let savedDates = UserDefaults.standard.stringArray(forKey: "dates") ?? []
