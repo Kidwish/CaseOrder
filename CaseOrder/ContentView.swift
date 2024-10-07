@@ -18,21 +18,26 @@ struct ContentView: View {
             VStack {
                 DatePicker("选择日期", selection: $selectedDate, displayedComponents: .date)
                     .padding()
+                    .background(Color.white)
+                    .cornerRadius(10)
+                    .shadow(radius: 5)
                     .onChange(of: selectedDate) { _ in
                         loadSelectedDishesForDate()
                     }
 
                 List {
-                    Section(header: Text("菜品列表")) {
+                    Section(header: Text("菜品列表").font(.headline)) {
                         ForEach(dishes, id: \.self) { dish in
                             HStack {
                                 Text(dish)
+                                    .font(.body)
                                 Spacer()
                                 if selectedDishes.contains(dish) {
                                     Image(systemName: "checkmark")
                                         .foregroundColor(.blue)
                                 }
                             }
+                            .contentShape(Rectangle())
                             .onTapGesture {
                                 toggleSelection(dish: dish)
                             }
@@ -40,36 +45,47 @@ struct ContentView: View {
                         .onDelete(perform: deleteDish) // 添加删除功能
                     }
 
-                    Section(header: Text("所点菜品")) {
+                    Section(header: Text("所点菜品").font(.headline)) {
                         ForEach(selectedDishes, id: \.self) { dish in
                             Text(dish)
                         }
                     }
                 }
+                .listStyle(InsetGroupedListStyle())
 
                 HStack {
-                    TextField("添加新菜品", text: $newDishName)
+                    TextField("我们会做新的菜了！", text: $newDishName)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding()
 
                     Button(action: addDish) {
                         Text("添加")
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                            .shadow(radius: 5)
                     }
-                    .padding()
                 }
+                .padding()
 
                 Button(action: shareSelectedDishes) {
-                    Text("分享所选菜品")
+                    Text("点好菜了！")
                         .padding()
                         .background(Color.green)
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(10)
+                        .shadow(radius: 5)
                 }
+                .padding(.bottom)
             }
             .navigationTitle("点菜")
+            .padding()
+            .background(LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.5), Color.green.opacity(0.5)]), startPoint: .top, endPoint: .bottom))
             .onAppear(perform: loadDishes)
             .onAppear(perform: loadSelectedDishesForDate)
             .onAppear(perform: checkForSharedContent)
+
         }
     }
 
@@ -215,9 +231,7 @@ struct ContentView: View {
         // 强制更新当前日期的所选菜品
         loadSelectedDishesForDate()
     }
-
 }
-
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
